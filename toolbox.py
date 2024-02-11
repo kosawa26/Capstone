@@ -43,3 +43,37 @@ def datetime_transformer(df, datetime_vars):
     df_datetime = df_datetime.drop(columns=datetime_vars)
                 
     return df_datetime
+
+
+def create_severity(df):
+    """
+    Create a new feature named 'Severity'
+
+    Parameters
+    ----------
+    df : the dataframe
+    
+    Returns
+    ----------
+    The dataframe where 'Severity' has 3 different values:
+    3: The number of fatal injuries >= 1 or the number of total injuries >= 3.
+    2: The number of total injuries is more than one and less than three.
+    1: The number of total injuries is zero.
+    """
+
+    # make a copy of df
+    df_severity = df.copy(deep=True)
+    
+    # make an initial severity series
+    series_severity = pd.Series([1]*df.shape[0], index=df_severity.index)
+    
+    # update series_severity
+    for i in range(df.shape[0]):
+        if df["INJURIES_FATAL"].iloc[i] > 0 or df["INJURIES_TOTAL"].iloc[i] > 2:
+            series_severity.iloc[i] = 3
+        elif df["INJURIES_TOTAL"].iloc[i] > 0:
+            series_severity.iloc[i] = 2
+            
+    df_severity["Severity"] = series_severity
+    
+    return df_severity
