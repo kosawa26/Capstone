@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy.stats import chi2_contingency
+from scipy.stats import chi2_contingency, chi2
 
 
 def datetime_transformer(df, datetime_vars):
@@ -106,3 +106,32 @@ def independence_test(df, feature1, feature2):
         cross_table.append(temp)
         
     return chi2_contingency(np.array(cross_table))
+
+
+def independence_test_summary(df, significance):
+    """
+    Create a dataframe containing the results of the test of independence
+
+    Parameters
+    ----------
+    df : the dataframe
+    significance : significance level
+    
+    Returns
+    ----------
+    Dataframe which contains feature name, chi-statistic, critical statistic, and p-value
+    """
+    cat_features = df.dtypes[df.dtypes==object].index
+    stat = []
+    crit = []
+    pval = []
+    for feature in cat_features:
+        temp = independence_test(df, feature, "Severity")
+        stat.append(temp[0])
+        crit.append(chi2.ppf(1-significance, df=temp[2]))
+        pval.append(temp[1])
+    
+    chi_df = pd.DataFrame(data=[cat_features, stat, crit, pval], 
+                          index=["Feature", "Chi-stat", "Critical stat", "p-value"]).T
+
+    return chi_df
