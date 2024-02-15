@@ -1,4 +1,6 @@
+import numpy as np
 import pandas as pd
+from scipy.stats import chi2_contingency
 
 
 def datetime_transformer(df, datetime_vars):
@@ -77,3 +79,30 @@ def create_severity(df):
     df_severity["Severity"] = series_severity
     
     return df_severity
+
+
+def independence_test(df, feature1, feature2):
+    """
+    Performe the test of independence
+
+    Parameters
+    ----------
+    df : the dataframe
+    feature1 : the name of feature for which the test is performed
+    feature2 : the name of feature for which the test is performed
+    
+    Returns
+    ----------
+    Tuple which contains chi-statistic, pvalue, degree of freedom, and expected frequencies
+    """
+    # initialize the cross table
+    cross_table = []
+
+    # update the cross table
+    for i in df[feature1].unique():
+        temp = []
+        for j in df[feature2].unique():
+            temp.append(df[(df[feature1]==i) & (df[feature2]==j)].shape[0])
+        cross_table.append(temp)
+        
+    return chi2_contingency(np.array(cross_table))
