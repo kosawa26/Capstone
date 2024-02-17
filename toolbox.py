@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency, chi2
+from datetime import datetime, timedelta
+import scipy as sp
+from scipy import stats as st
+from scipy.stats import kruskal
 
 
 def datetime_transformer(df, datetime_vars):
@@ -135,3 +139,90 @@ def independence_test_summary(df, significance):
                           index=["Feature", "Chi-stat", "Critical stat", "p-value"]).T
 
     return chi_df
+
+
+def create_initial_df(original_df, start_year, start_month, start_day, end_year, end_month, end_day):
+    time_frame = ["0-2", "2-4", "4-6", "6-8", "8-10", "10-12", "12-14", "14-16", "16-18", "18-20", "20-22", "22-24"]
+    week_name = [2, 3, 4, 5, 6, 7, 1]
+
+    start_date = datetime(start_year, start_month, start_day)
+    end_date = datetime(end_year, end_month, end_day)
+    dates = []
+    current_date = start_date
+    while current_date <= end_date:
+        dates.append(current_date)
+        current_date += timedelta(days=1)
+
+    Year, Month, Day, Time_frame, Day_of_week, Severity, Count = [], [], [], [], [], [], []
+
+    for severity in [1, 2, 3]:
+        for day in dates:
+            Year += [day.year] * 12
+            Month += [day.month] * 12
+            Day += [day.day] * 12
+            Time_frame += time_frame
+            Day_of_week += [week_name[day.weekday()]] * 12
+            Severity += [severity] * 12
+            Count += [0] * 12
+        
+    initial_df = pd.DataFrame(data=[Year, Month, Day, Time_frame, Day_of_week, Severity], 
+                              index=["Year", "Month", "Day", "Time_frame", "Day_of_week", "Severity"]).T
+
+    DF = initial_df.copy(deep=True)
+    DF["Community_area"] = [original_df.Community_area.unique()[0]] * DF.shape[0]
+
+    for comm in original_df.Community_area.unique()[1:]:
+        df_temp = initial_df.copy(deep=True)
+        df_temp["Community_area"] = [comm] * df_temp.shape[0]
+        DF = pd.concat([DF, df_temp], ignore_index=True)
+
+    return DF
+
+
+def calculate_time_frame(hour):
+    return f"{hour // 2 * 2}-{hour // 2 * 2 + 2}"
+
+
+def create_count_df(initial_df, original_df):
+
+    # create "Time_frame" 
+    df = original_df.copy(deep=True)
+    df['Time_frame'] = df['CRASH_DATE_hour'].apply(calculate_time_frame)
+
+    # groupby
+    grouped = df.groupby(['CRASH_DATE_year', 'CRASH_DATE_month', 'CRASH_DATE_day', 'Time_frame', 'Severity', "Community_area"]).size().reset_index(name='Count')
+    grouped.rename(columns={'CRASH_DATE_year': 'Year', 'CRASH_DATE_month': 'Month', 'CRASH_DATE_day': 'Day'}, inplace=True)
+
+    # merge
+    result = pd.merge(initial_df, grouped, left_on=['Year', 'Month', 'Day', 'Time_frame', 'Severity', 'Community_area'], 
+                      right_on=['Year', 'Month', 'Day', 'Time_frame', 'Severity', 'Community_area'], how='left')
+
+    # replace NAN with 0
+    result['Count'] = result['Count'].fillna(0).astype(int)
+
+    return result
+
+
+def normal_test(df, numerical_feature):
+    nomal = True
+    for s in [1, 2, 3]:
+        temp = df[df["Severity"]==s][numerical_feature]
+        if st.shapiro(temp)[1] < 0.05:
+            nomal = False
+            
+    if nomal:
+        print(f"{numerical_feature} is normaly distributed")
+    else:
+        print(f"{numerical_feature} is NOT normaly distributed")
+        
+        
+def kruskal_test(df, numerical_features):
+    kruskal_stat, pval = [], []
+    for feature in numerical_features:
+        statistic, p_value = kruskal(df[df["Severity"]==1][feature], df[df["Severity"]==2][feature], df[df["Severity"]==3][feature])
+        kruskal_stat.append(statistic)
+        pval.append(p_value)
+        
+    result = pd.DataFrame(data=[numerical_features, kruskal_stat, pval], index=["Feature", "Kruskal-stat", "p-value"]).T
+    
+    return result
