@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import scipy as sp
 from scipy import stats as st
 from scipy.stats import kruskal
+from sklearn.model_selection import PredefinedSplit
 
 
 def datetime_transformer(df, datetime_vars):
@@ -226,3 +227,63 @@ def kruskal_test(df, numerical_features):
     result = pd.DataFrame(data=[numerical_features, kruskal_stat, pval], index=["Feature", "Kruskal-stat", "p-value"]).T
     
     return result
+
+
+def cyclic_encoding(df, feature_list):
+    """
+    Add new features, which are encoded using trigonometric function
+
+    Parameters
+    ----------
+    df : the dataframe
+    feature_list : the list of categorical features which shows cyclic behavior
+    
+    Returns
+    ----------
+    Dataframe which contains new encoded features instead of the original features
+    """
+    df_encoded = df.copy(deep=True)
+
+    for feature in feature_list:
+        df_encoded = df_encoded.astype({feature: int})
+        df_encoded[f"{feature}_sin"] = np.sin(df_encoded[feature] * (2.0 * np.pi / df_encoded[feature].max()))
+        df_encoded[f"{feature}_cos"] = np.cos(df_encoded[feature] * (2.0 * np.pi / df_encoded[feature].max()))
+        df_encoded.drop(columns=[feature], inplace=True)
+        
+    return df_encoded
+
+
+def get_train_val_ps(X_train, y_train, X_val, y_val):
+    """
+    Get the:
+    feature matrix and target velctor in the combined training and validation data
+    target vector in the combined training and validation data
+    PredefinedSplit
+    
+    Parameters
+    ----------
+    X_train : the feature matrix in the training data
+    y_train : the target vector in the training data
+    X_val : the feature matrix in the validation data
+    y_val : the target vector in the validation data  
+
+    Return
+    ----------
+    The feature matrix in the combined training and validation data
+    The target vector in the combined training and validation data
+    PredefinedSplit
+    """  
+
+    # Combine the feature matrix in the training and validation data
+    X_train_val = np.vstack((X_train, X_val))
+
+    # Combine the target vector in the training and validation data
+    y_train_val = np.vstack((y_train.reshape(-1, 1), y_val.reshape(-1, 1))).reshape(-1)
+
+    # Get the indices of training and validation data
+    train_val_idxs = np.append(np.full(X_train.shape[0], -1), np.full(X_val.shape[0], 0))
+
+    # The PredefinedSplit
+    ps = PredefinedSplit(train_val_idxs)
+
+    return X_train_val, y_train_val, ps
